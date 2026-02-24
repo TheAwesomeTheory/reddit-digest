@@ -1,0 +1,27 @@
+# Reddit Digest Configuration
+
+email:
+  smtp_server: smtp.gmail.com
+  smtp_port: 587
+  sender: your-email@gmail.com
+  recipient: your-email@gmail.com
+
+# General filtering rules applied to all posts
+general_rules: |
+  Only approve posts that are educational, insightful, or directly useful.
+  Reject rage-bait, low-effort content, and engagement farming.
+  Be selective - quality over quantity.
+
+# Subreddits to monitor
+subreddits:
+  - name: programming
+    feed: https://www.reddit.com/r/programming/new/.rss
+    rules: |
+      Prioritize: deep technical content, war stories, tool releases
+      Reject: career advice, "what language should I learn" questions
+
+  - name: machinelearning
+    feed: https://www.reddit.com/r/machinelearning/new/.rss
+    rules: |
+      Prioritize: papers, tutorials, significant releases
+      Reject: beginner showcase posts, memes

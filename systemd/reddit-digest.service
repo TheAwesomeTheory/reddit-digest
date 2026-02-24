@@ -1,0 +1,21 @@
+[Unit]
+Description=Reddit Digest - AI-curated Reddit feed
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/reddit-digest
+ExecStart=%h/.local/bin/uv run rd run
+Environment="PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin"
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target
