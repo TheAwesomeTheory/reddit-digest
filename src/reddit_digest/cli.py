@@ -17,10 +17,11 @@ def cli():
 
 
 @cli.command()
-def run():
+@click.option("--dry-run", is_flag=True, help="Run without sending email")
+def run(dry_run: bool):
     """Run the digest manually (fetch, filter, email)."""
     from .main import run_digest
-    run_digest()
+    run_digest(dry_run=dry_run)
 
 
 # --- Service management ---
@@ -528,14 +529,21 @@ def deploy_rollback(commit: str, force: bool):
 
 
 @deploy.command("test-run")
-def deploy_test_run():
-    """Run a test cycle and report success/failure (for CI/agents)."""
+@click.option("--send-email", is_flag=True, help="Actually send email (default: dry run)")
+def deploy_test_run(send_email: bool):
+    """Run a test cycle and report success/failure (for CI/agents).
+
+    By default, runs in dry-run mode (no email sent).
+    Use --send-email to actually send.
+    """
     from .main import run_digest
 
-    click.echo("Running test digest cycle...")
+    dry_run = not send_email
+    mode = "LIVE" if send_email else "DRY RUN"
+    click.echo(f"Running test digest cycle ({mode})...")
     try:
-        run_digest()
-        click.secho("SUCCESS: Digest cycle completed", fg="green")
+        run_digest(dry_run=dry_run)
+        click.secho(f"SUCCESS: Digest cycle completed ({mode})", fg="green")
         sys.exit(0)
     except Exception as e:
         click.secho(f"FAILURE: {e}", fg="red", err=True)

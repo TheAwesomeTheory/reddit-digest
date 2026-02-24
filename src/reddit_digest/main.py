@@ -18,22 +18,26 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def run_digest() -> None:
+def run_digest(dry_run: bool = False) -> None:
     """
     Run a single digest cycle:
     1. Fetch new posts from all subreddits
     2. Filter through Grok
     3. Save approved posts
     4. Generate HTML email
-    5. Send email
+    5. Send email (unless dry_run)
     6. Mark posts as emailed
+
+    Args:
+        dry_run: If True, skip sending email and don't mark as emailed.
+                 Useful for testing.
     """
     # Load environment and config
     cfg.load_env()
     config = cfg.load_config()
     subreddit_configs = cfg.get_subreddit_configs()
 
-    logger.info("Starting digest run...")
+    logger.info(f"Starting digest run...{' (DRY RUN)' if dry_run else ''}")
 
     # Step 1: Fetch new posts
     subreddits = config.get("subreddits", [])
@@ -81,7 +85,14 @@ def run_digest() -> None:
     html = generate_html(unsent)
     plain = generate_plain_text(unsent)
 
-    # Step 6: Send email
+    # Step 6: Send email (unless dry run)
+    if dry_run:
+        logger.info("DRY RUN: Would send email with the following content:")
+        logger.info(f"HTML length: {len(html)} characters")
+        logger.info(f"Posts included: {[p['title'][:50] for p in unsent]}")
+        logger.info("DRY RUN: Skipping email send and not marking as emailed")
+        return
+
     logger.info("Sending email...")
     try:
         send_email(html, plain)
