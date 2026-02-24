@@ -2,6 +2,64 @@
 
 AI-curated Reddit feed that emails filtered posts every 30 minutes.
 
+---
+
+## What You'll Need (Gather Before Setup)
+
+### 1. xAI API Key
+- **What it is:** API key for Grok (the AI that filters posts and generates emails)
+- **Where to get it:** https://console.x.ai/ → Create account → API Keys → Create new key
+- **Looks like:** `xai-xxxxxxxxxxxxxxxxxxxx`
+- **Cost:** Pay-per-use, very cheap for this use case (~$0.01-0.10/day)
+
+### 2. Gmail App Password
+- **What it is:** A special password for apps to send email via your Gmail
+- **Why not regular password:** Google requires app-specific passwords for SMTP
+- **Where to get it:**
+  1. Go to https://myaccount.google.com/security
+  2. Enable 2-Factor Authentication (required)
+  3. Go to https://myaccount.google.com/apppasswords
+  4. Create a new app password (select "Mail" and "Other")
+  5. Copy the 16-character password (spaces don't matter)
+- **Looks like:** `abcd efgh ijkl mnop`
+
+### 3. Email Addresses
+- **Sender:** Your Gmail address (the one you created the app password for)
+- **Recipient:** Where to send digests (can be the same as sender)
+
+### 4. Subreddits to Monitor
+- **What to provide:** List of subreddit names (without `r/`)
+- **Examples:** `programming`, `machinelearning`, `rust`, `LocalLLaMA`
+- **How to choose:** Pick subreddits you want curated content from
+
+### 5. Filtering Rules
+For each subreddit, you'll define rules that tell Grok what to include/exclude.
+
+**Format:**
+```
+Prioritize: <what you want to see>
+Reject: <what you don't want>
+```
+
+**Example for r/programming:**
+```
+Prioritize: deep technical content, architecture discussions, tool releases, war stories
+Reject: career advice, "what language should I learn", memes, rage-bait
+```
+
+**Example for r/machinelearning:**
+```
+Prioritize: papers, tutorials, significant model releases, benchmarks
+Reject: beginner "I trained my first model" posts, memes, low-effort questions
+```
+
+**Tips for writing rules:**
+- Be specific about what you value
+- Mention common low-quality patterns to reject
+- Think about what makes you actually want to click a link
+
+---
+
 ## Quick Reference
 
 ```bash
@@ -90,6 +148,8 @@ uv run rd service restart
 
 ### First-Time Setup on a New Server
 
+**Prerequisites:** Gather all items from "What You'll Need" section first!
+
 ```bash
 # 1. Clone the repo
 git clone <repo-url> ~/reddit-digest
@@ -98,17 +158,23 @@ cd ~/reddit-digest
 # 2. Install dependencies
 uv sync
 
-# 3. Set up API keys
-uv run rd config set-key xai      # Enter your xAI API key
-uv run rd config set-key gmail    # Enter Gmail app password
+# 3. Set up API keys (you'll be prompted to enter them)
+uv run rd config set-key xai      # Paste your xAI API key
+uv run rd config set-key gmail    # Paste your Gmail app password
 
-# 4. Configure email addresses in config.yaml
-#    Set sender: and recipient: to your email
+# 4. Configure email and subreddits
+#    Edit config.yaml:
+#    - Set email.sender to your Gmail address
+#    - Set email.recipient to where you want digests sent
+#    - Add your subreddits with their rules
 
 # 5. Test email works
 uv run rd test-email
+# Check your inbox! If no email, check spam or verify app password.
 
-# 6. Test a full run
+# 6. Test a full run (dry run first)
+uv run rd run --dry-run
+# If that works, do a real run:
 uv run rd run
 
 # 7. Install systemd service
@@ -117,11 +183,69 @@ uv run rd service install
 # 8. Start the service
 uv run rd service start
 
-# 9. Enable on boot (optional)
+# 9. Enable on boot (optional but recommended)
 systemctl --user enable reddit-digest.timer
 
 # 10. Verify
 uv run rd service health
+```
+
+### Setup Checklist
+
+Use this to track setup progress:
+
+- [ ] Got xAI API key from console.x.ai
+- [ ] Got Gmail app password from myaccount.google.com/apppasswords
+- [ ] Cloned repo and ran `uv sync`
+- [ ] Set xAI key: `uv run rd config set-key xai`
+- [ ] Set Gmail password: `uv run rd config set-key gmail`
+- [ ] Edited config.yaml with email addresses
+- [ ] Added subreddits with filtering rules
+- [ ] Test email works: `uv run rd test-email`
+- [ ] Test run works: `uv run rd run --dry-run`
+- [ ] Installed service: `uv run rd service install`
+- [ ] Started service: `uv run rd service start`
+- [ ] Verified healthy: `uv run rd service health`
+
+### Example config.yaml
+
+Copy this and customize for your needs:
+
+```yaml
+email:
+  smtp_server: smtp.gmail.com
+  smtp_port: 587
+  sender: yourname@gmail.com        # ← Your Gmail address
+  recipient: yourname@gmail.com     # ← Where to receive digests
+
+# General rules applied to ALL posts
+general_rules: |
+  Only approve posts that are educational, insightful, or directly useful.
+  Reject rage-bait, low-effort content, and engagement farming.
+  Be selective - quality over quantity.
+
+# Each subreddit you want to monitor
+subreddits:
+  - name: programming
+    feed: https://www.reddit.com/r/programming/new/.rss
+    rules: |
+      Prioritize: deep technical content, architecture discussions,
+                  tool releases, post-mortems, war stories
+      Reject: career advice, "what language should I learn",
+              memes, basic tutorials, job postings
+
+  - name: machinelearning
+    feed: https://www.reddit.com/r/machinelearning/new/.rss
+    rules: |
+      Prioritize: papers, tutorials, significant releases, benchmarks
+      Reject: beginner showcase posts, memes, course recommendations
+
+  - name: LocalLLaMA
+    feed: https://www.reddit.com/r/LocalLLaMA/new/.rss
+    rules: |
+      Prioritize: new model releases, quantization breakthroughs,
+                  performance comparisons, useful tools
+      Reject: basic setup questions, "which model should I use"
 ```
 
 ### Deploying Code Updates
