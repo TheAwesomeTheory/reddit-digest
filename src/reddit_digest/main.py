@@ -49,31 +49,28 @@ def run_digest(dry_run: bool = False) -> None:
     new_posts = fetch_all(subreddits)
     logger.info(f"Found {len(new_posts)} new posts")
 
-    if not new_posts:
-        logger.info("No new posts to process")
-        return
+    # Step 2: Filter new posts through Grok (if any)
+    if new_posts:
+        logger.info("Filtering posts through Grok...")
+        general_rules = config.get("general_rules", "")
+        approved = filter_posts(new_posts, general_rules, subreddit_configs)
+        logger.info(f"Grok approved {len(approved)} of {len(new_posts)} posts")
 
-    # Step 2: Filter through Grok
-    logger.info("Filtering posts through Grok...")
-    general_rules = config.get("general_rules", "")
-    approved = filter_posts(new_posts, general_rules, subreddit_configs)
-    logger.info(f"Grok approved {len(approved)} of {len(new_posts)} posts")
+        # Step 3: Mark all posts as seen and save approved ones
+        for post in new_posts:
+            db.mark_seen(post.post_id, post.subreddit, post.title, post.url)
 
-    # Step 3: Mark all posts as seen and save approved ones
-    for post in new_posts:
-        db.mark_seen(post.post_id, post.subreddit, post.title, post.url)
+        for post, result in approved:
+            db.save_approved(
+                post_id=post.post_id,
+                subreddit=post.subreddit,
+                title=post.title,
+                url=post.url,
+                content=post.content,
+                grok_reason=result.reason,
+            )
 
-    for post, result in approved:
-        db.save_approved(
-            post_id=post.post_id,
-            subreddit=post.subreddit,
-            title=post.title,
-            url=post.url,
-            content=post.content,
-            grok_reason=result.reason,
-        )
-
-    # Step 4: Check if we have posts to email
+    # Step 4: Check if we have posts to email (including from previous runs)
     unsent = db.get_unsent_approved()
     if not unsent:
         logger.info("No posts to email")
