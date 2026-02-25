@@ -5,12 +5,48 @@ import logging
 import os
 import random
 from datetime import datetime
+from pathlib import Path
 from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
+# Cache directory for generated HTML (inside project root)
+CACHE_DIR = Path(__file__).parent.parent.parent / "cache"
+
 # Models to randomly choose from for HTML generation (50/50 split)
 HTML_MODELS = ["grok-code-fast-1", "grok-4-fast-reasoning"]
+
+
+def _truncate_content(content: str, max_length: int = 1500) -> str:
+    """Truncate content to max_length, adding ellipsis if truncated."""
+    if len(content) <= max_length:
+        return content
+    return content[:max_length].rsplit(" ", 1)[0] + "..."
+
+
+def _save_to_cache(html: str, posts: list[dict], model: str) -> Path:
+    """
+    Save generated HTML and input posts to cache directory.
+
+    Returns the path to the saved HTML file.
+    """
+    CACHE_DIR.mkdir(exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Include model in filename for A/B comparison
+    base_name = f"digest_{timestamp}_{model}"
+
+    html_path = CACHE_DIR / f"{base_name}.html"
+    json_path = CACHE_DIR / f"{base_name}.json"
+
+    # Save HTML
+    html_path.write_text(html, encoding="utf-8")
+
+    # Save input posts for debugging prompt iterations
+    json_path.write_text(json.dumps(posts, indent=2), encoding="utf-8")
+
+    logger.info(f"Cached digest to {html_path}")
+    return html_path
 
 
 def get_client() -> OpenAI:
@@ -40,29 +76,30 @@ def generate_html(posts: list[dict]) -> str:
     """
     client = get_client()
 
-    # Format posts for the prompt
-    posts_summary = json.dumps(
-        [
-            {
-                "title": p["title"],
-                "url": p["url"],
-                "subreddit": f"r/{p['subreddit']}",
-                "snippet": p.get("content", "")[:300],
-                "why_included": p.get("grok_reason", ""),
-            }
-            for p in posts
-        ],
-        indent=2,
-    )
+    # Format posts for the prompt (include more content for richer emails)
+    posts_data = [
+        {
+            "title": p["title"],
+            "url": p["url"],
+            "subreddit": f"r/{p['subreddit']}",
+            "content": _truncate_content(p.get("content", ""), 1500),
+            "why_included": p.get("grok_reason", ""),
+            "posted": p.get("published_at", ""),
+        }
+        for p in posts
+    ]
+    posts_summary = json.dumps(posts_data, indent=2)
 
     prompt = f"""Generate a complete HTML email for a personal content digest. Style the page to match the vibe and content of the posts below. Full creative freedom - be artistic, experimental, fun. Make it visually interesting and unique.
 
 The email should:
 - Be a single self-contained HTML document
 - Include ALL CSS inline or in a <style> tag (no external stylesheets)
-- Make post titles clickable links to the Reddit posts
+- Make post titles PROMINENT CLICKABLE LINKS to the Reddit posts (style them to stand out with color, underline, hover effects)
+- Display the post content/snippet for each post (make it readable, use appropriate formatting)
 - Show which subreddit each post is from
-- Include the curator's reason for including each post
+- Show when each post was posted (relative time like "2 hours ago" or the date)
+- Include the curator's reason for including each post (this explains why it was selected)
 - Have a header/title for the digest
 - Include the date: {datetime.now().strftime("%B %d, %Y at %I:%M %p")}
 - Be readable on both desktop and mobile
@@ -96,7 +133,12 @@ Output ONLY the HTML document, no explanation or markdown code fences."""
     if html.endswith("```"):
         html = html[:-3]
 
-    return html.strip()
+    html = html.strip()
+
+    # Cache the generated HTML and input data for debugging
+    _save_to_cache(html, posts_data, model)
+
+    return html
 
 
 def generate_plain_text(posts: list[dict]) -> str:
@@ -116,8 +158,10 @@ def generate_plain_text(posts: list[dict]) -> str:
     ]
 
     for post in posts:
+        posted = post.get('published_at', '')
+        posted_str = f" | Posted: {posted}" if posted else ""
         lines.extend([
-            f"[r/{post['subreddit']}] {post['title']}",
+            f"[r/{post['subreddit']}{posted_str}] {post['title']}",
             f"Link: {post['url']}",
             f"Why: {post.get('grok_reason', 'N/A')}",
             "",

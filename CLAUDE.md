@@ -67,6 +67,8 @@ uv run rd run                    # Run digest manually
 uv run rd service health         # Check health (exit 0 = good)
 uv run rd service recent-logs -n 50  # View logs
 uv run rd db stats               # See post counts
+uv run rd cache list             # View cached HTML digests
+uv run rd cache show <file>      # Open cached HTML in browser
 ```
 
 ---
@@ -216,7 +218,10 @@ email:
   smtp_server: smtp.gmail.com
   smtp_port: 587
   sender: yourname@gmail.com        # ← Your Gmail address
-  recipient: yourname@gmail.com     # ← Where to receive digests
+  recipients:                       # ← Can send to multiple people!
+    - yourname@gmail.com
+    - friend1@example.com
+    - friend2@example.com
 
 # General rules applied to ALL posts
 general_rules: |
@@ -426,6 +431,13 @@ uv run rd db stats        # Show statistics
 uv run rd db clear-seen   # Clear seen posts (reprocess all)
 ```
 
+### Cache (for debugging HTML generation)
+```bash
+uv run rd cache list              # List cached HTML digests
+uv run rd cache show <filename>   # Open cached HTML in browser
+uv run rd cache clean --older-than 7d  # Delete old cache files
+```
+
 ### Deployment
 ```bash
 uv run rd deploy current      # Show current commit
@@ -478,6 +490,27 @@ uv run rd deploy rollback X   # Rollback to commit X
 ### "I want to change how emails look"
 
 Edit `src/reddit_digest/html_generator.py` - modify the prompt to Grok that describes how to style the email.
+
+**To iterate on the prompt:**
+1. Run a test: `uv run rd run --dry-run`
+2. View the generated HTML: `uv run rd cache list` then `uv run rd cache show <filename>`
+3. Each cached file includes both the HTML and the input JSON (for reproducing results)
+4. Tweak the prompt in `html_generator.py` and repeat
+
+### "I want to add friends as recipients"
+
+Edit `config.yaml` and add emails to the `recipients` list:
+
+```yaml
+email:
+  sender: you@gmail.com
+  recipients:
+    - you@gmail.com
+    - friend1@example.com
+    - friend2@example.com
+```
+
+Each recipient gets their own copy of the digest email.
 
 ### "I want to change filtering behavior"
 

@@ -214,7 +214,15 @@ def config_show():
     click.echo("\n=== Email Settings ===")
     email = config.get("email", {})
     click.echo(f"Sender: {email.get('sender', 'NOT SET')}")
-    click.echo(f"Recipient: {email.get('recipient', 'NOT SET')}")
+
+    # Support both 'recipients' (list) and 'recipient' (string)
+    recipients = email.get("recipients", email.get("recipient"))
+    if isinstance(recipients, list):
+        click.echo(f"Recipients ({len(recipients)}):")
+        for r in recipients:
+            click.echo(f"  - {r}")
+    else:
+        click.echo(f"Recipient: {recipients or 'NOT SET'}")
 
     click.echo("\n=== General Rules ===")
     click.echo(config.get("general_rules", "NOT SET"))
@@ -354,6 +362,137 @@ def db_clear_seen():
 
     count = database.clear_seen()
     click.echo(f"Cleared {count} seen posts.")
+
+
+# --- Cache commands ---
+
+
+@cli.group()
+def cache():
+    """Manage cached HTML digests (for debugging prompts)."""
+    pass
+
+
+@cache.command("list")
+@click.option("-n", "--count", default=10, help="Number of entries to show")
+def cache_list(count: int):
+    """List cached digests (most recent first)."""
+    from .html_generator import CACHE_DIR
+
+    if not CACHE_DIR.exists():
+        click.echo("No cache directory yet.")
+        return
+
+    html_files = sorted(CACHE_DIR.glob("*.html"), key=lambda f: f.stat().st_mtime, reverse=True)
+
+    if not html_files:
+        click.echo("No cached digests found.")
+        return
+
+    click.echo(f"\n=== Cached Digests ({len(html_files)} total) ===\n")
+    for i, f in enumerate(html_files[:count]):
+        # Parse timestamp and model from filename
+        # Format: digest_YYYYMMDD_HHMMSS_modelname.html
+        parts = f.stem.split("_", 3)
+        if len(parts) >= 4:
+            date_str = parts[1]
+            time_str = parts[2]
+            model = parts[3]
+            timestamp = f"{date_str[:4]}-{date_str[4:6]}-{date_str[6:]} {time_str[:2]}:{time_str[2:4]}:{time_str[4:]}"
+        else:
+            timestamp = "Unknown"
+            model = "Unknown"
+
+        # Check if JSON exists
+        json_path = f.with_suffix(".json")
+        has_json = "+" if json_path.exists() else " "
+
+        click.echo(f"  {i+1}. {f.name} [{timestamp}] ({model}) {has_json}")
+
+    if len(html_files) > count:
+        click.echo(f"\n  ... and {len(html_files) - count} more")
+
+
+@cache.command("show")
+@click.argument("filename")
+def cache_show(filename: str):
+    """Open a cached HTML file in the default browser."""
+    import webbrowser
+    from .html_generator import CACHE_DIR
+
+    # Allow partial matches
+    if not filename.endswith(".html"):
+        filename = f"{filename}.html"
+
+    filepath = CACHE_DIR / filename
+    if not filepath.exists():
+        # Try fuzzy match
+        matches = list(CACHE_DIR.glob(f"*{filename}*"))
+        if matches:
+            filepath = matches[0]
+            click.echo(f"Using: {filepath.name}")
+        else:
+            click.echo(f"File not found: {filename}", err=True)
+            click.echo("Use 'rd cache list' to see available files.")
+            sys.exit(1)
+
+    click.echo(f"Opening {filepath.name} in browser...")
+    webbrowser.open(f"file://{filepath.resolve()}")
+
+
+@cache.command("clean")
+@click.option("--older-than", default="7d", help="Delete files older than (e.g., 7d, 24h)")
+@click.option("--dry-run", is_flag=True, help="Show what would be deleted")
+def cache_clean(older_than: str, dry_run: bool):
+    """Delete old cached files."""
+    from datetime import datetime, timedelta
+    from .html_generator import CACHE_DIR
+
+    if not CACHE_DIR.exists():
+        click.echo("No cache directory.")
+        return
+
+    # Parse time delta
+    if older_than.endswith("d"):
+        delta = timedelta(days=int(older_than[:-1]))
+    elif older_than.endswith("h"):
+        delta = timedelta(hours=int(older_than[:-1]))
+    else:
+        click.echo("Use format like '7d' (days) or '24h' (hours)", err=True)
+        sys.exit(1)
+
+    cutoff = datetime.now() - delta
+    cutoff_ts = cutoff.timestamp()
+
+    # Find old files
+    to_delete = []
+    for f in CACHE_DIR.iterdir():
+        if f.stat().st_mtime < cutoff_ts:
+            to_delete.append(f)
+
+    if not to_delete:
+        click.echo(f"No files older than {older_than}.")
+        return
+
+    click.echo(f"Found {len(to_delete)} files older than {older_than}:")
+    for f in to_delete[:10]:
+        click.echo(f"  - {f.name}")
+    if len(to_delete) > 10:
+        click.echo(f"  ... and {len(to_delete) - 10} more")
+
+    if dry_run:
+        click.echo("\n(Dry run - no files deleted)")
+        return
+
+    if not click.confirm(f"\nDelete {len(to_delete)} files?"):
+        return
+
+    deleted = 0
+    for f in to_delete:
+        f.unlink()
+        deleted += 1
+
+    click.echo(f"Deleted {deleted} files.")
 
 
 # --- Testing commands ---

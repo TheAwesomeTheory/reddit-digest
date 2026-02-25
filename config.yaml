@@ -4,7 +4,10 @@ email:
   smtp_server: smtp.gmail.com
   smtp_port: 587
   sender: theawesometh3ory@gmail.com
-  recipient: theawesometh3ory@gmail.com
+  # Send to multiple recipients (add friends here!)
+  recipients:
+    - theawesometh3ory@gmail.com
+    - austindward@proton.me
 
 # General filtering rules applied to all posts
 general_rules: |
@@ -12,8 +15,12 @@ general_rules: |
   Reject rage-bait, low-effort content, and engagement farming.
   Be selective - quality over quantity.
 
+  For news content: strongly prefer genuinely positive or constructive stories.
+  Reject doom-scrolling bait, fear-mongering, and outrage content.
+
 # Subreddits to monitor
 subreddits:
+  # === Tech Subreddits ===
   - name: programming
     feed: https://www.reddit.com/r/programming/new/.rss
     rules: |
@@ -25,3 +32,48 @@ subreddits:
     rules: |
       Prioritize: papers, tutorials, significant releases
       Reject: beginner showcase posts, memes
+
+  # === Good News / Positive Content ===
+  - name: UpliftingNews
+    feed: https://www.reddit.com/r/UpliftingNews/new/.rss
+    rules: |
+      Prioritize: genuinely positive stories, human kindness, scientific breakthroughs,
+                  environmental wins, community success stories
+      Reject: stories that are "positive spin" on bad situations, clickbait,
+              celebrity fluff, anything that feels forced or fake
+
+  - name: goodnews
+    feed: https://www.reddit.com/r/goodnews/new/.rss
+    rules: |
+      Prioritize: real positive developments, progress stories, heartwarming events
+      Reject: reposts, trivial "good news", marketing disguised as news
+
+  # === Science & Progress ===
+  - name: Futurology
+    feed: https://www.reddit.com/r/Futurology/new/.rss
+    rules: |
+      Prioritize: breakthroughs, positive technological advances, solutions to problems
+      Reject: dystopian speculation, doom-posting, sensationalized headlines
+
+  - name: science
+    feed: https://www.reddit.com/r/science/new/.rss
+    rules: |
+      Prioritize: significant discoveries, health breakthroughs, positive environmental news
+      Reject: preliminary studies with weak evidence, doom headlines,
+              studies about obvious things
+
+  # === Technology ===
+  - name: technology
+    feed: https://www.reddit.com/r/technology/new/.rss
+    rules: |
+      Prioritize: innovation announcements, useful new tech, open source wins
+      Reject: corporate drama, privacy scares (unless actionable), rage-bait headlines
+
+  # === Broad Discovery ===
+  - name: all
+    feed: https://www.reddit.com/r/all/hot/.rss
+    rules: |
+      Prioritize: genuinely interesting content, breakthroughs, heartwarming stories,
+                  useful knowledge, creative works, educational content
+      Reject: memes, politics, drama, rage-bait, celebrity gossip, sports scores,
+              gaming clips, NSFW content, relationship advice, low-effort humor

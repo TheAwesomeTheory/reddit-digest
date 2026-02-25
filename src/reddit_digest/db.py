@@ -35,12 +35,18 @@ def _init_tables(conn: sqlite3.Connection) -> None:
             url TEXT,
             content TEXT,
             grok_reason TEXT,
+            published_at TIMESTAMP,
             approved_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             emailed_at TIMESTAMP
         );
 
         CREATE INDEX IF NOT EXISTS idx_approved_emailed ON approved_posts(emailed_at);
     """)
+    # Add published_at column to existing databases
+    try:
+        conn.execute("ALTER TABLE approved_posts ADD COLUMN published_at TIMESTAMP")
+    except sqlite3.OperationalError:
+        pass  # Column already exists
     conn.commit()
 
 
@@ -73,16 +79,17 @@ def save_approved(
     url: str,
     content: str,
     grok_reason: str,
+    published_at: Optional[datetime] = None,
 ) -> None:
     """Save an approved post."""
     with get_connection() as conn:
         conn.execute(
             """
             INSERT OR IGNORE INTO approved_posts
-            (post_id, subreddit, title, url, content, grok_reason)
-            VALUES (?, ?, ?, ?, ?, ?)
+            (post_id, subreddit, title, url, content, grok_reason, published_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-            (post_id, subreddit, title, url, content, grok_reason),
+            (post_id, subreddit, title, url, content, grok_reason, published_at),
         )
         conn.commit()
 
@@ -92,10 +99,10 @@ def get_unsent_approved() -> list[dict]:
     with get_connection() as conn:
         rows = conn.execute(
             """
-            SELECT id, post_id, subreddit, title, url, content, grok_reason, approved_at
+            SELECT id, post_id, subreddit, title, url, content, grok_reason, published_at, approved_at
             FROM approved_posts
             WHERE emailed_at IS NULL
-            ORDER BY approved_at ASC
+            ORDER BY published_at DESC NULLS LAST, approved_at ASC
             """
         ).fetchall()
         return [dict(row) for row in rows]

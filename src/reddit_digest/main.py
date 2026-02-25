@@ -1,7 +1,9 @@
 """Main orchestrator for Reddit Digest."""
 
 import logging
+import random
 import sys
+from datetime import datetime, timedelta
 
 from . import config as cfg
 from . import db
@@ -9,6 +11,11 @@ from .fetcher import fetch_all
 from .filter import filter_posts
 from .html_generator import generate_html, generate_plain_text
 from .emailer import send_email
+
+# Only include posts published within this window
+MAX_POST_AGE_MINUTES = 30
+# Max posts per digest email
+MAX_POSTS_PER_EMAIL = 10
 
 # Configure logging
 logging.basicConfig(
@@ -68,15 +75,44 @@ def run_digest(dry_run: bool = False) -> None:
                 url=post.url,
                 content=post.content,
                 grok_reason=result.reason,
+                published_at=post.published,
             )
 
     # Step 4: Check if we have posts to email (including from previous runs)
-    unsent = db.get_unsent_approved()
-    if not unsent:
+    all_unsent = db.get_unsent_approved()
+    if not all_unsent:
         logger.info("No posts to email")
         return
 
-    logger.info(f"Generating email for {len(unsent)} posts...")
+    # Filter to recent posts only (within MAX_POST_AGE_MINUTES)
+    cutoff = datetime.now() - timedelta(minutes=MAX_POST_AGE_MINUTES)
+    recent_unsent = []
+    for p in all_unsent:
+        published = p.get("published_at")
+        if published:
+            # Handle both string and datetime
+            if isinstance(published, str):
+                try:
+                    published = datetime.fromisoformat(published)
+                except ValueError:
+                    continue
+            if published >= cutoff:
+                recent_unsent.append(p)
+
+    if not recent_unsent:
+        logger.info(f"No recent posts (within {MAX_POST_AGE_MINUTES} min) to email")
+        # Mark old posts as emailed so they don't pile up
+        post_ids = [p["id"] for p in all_unsent]
+        if not dry_run and post_ids:
+            db.mark_emailed(post_ids)
+            logger.info(f"Marked {len(post_ids)} old posts as emailed (skipped)")
+        return
+
+    # Shuffle and limit to MAX_POSTS_PER_EMAIL
+    random.shuffle(recent_unsent)
+    unsent = recent_unsent[:MAX_POSTS_PER_EMAIL]
+
+    logger.info(f"Generating email for {len(unsent)} posts (of {len(recent_unsent)} recent, {len(all_unsent)} total)...")
 
     # Step 5: Generate HTML email
     html = generate_html(unsent)
@@ -95,10 +131,10 @@ def run_digest(dry_run: bool = False) -> None:
         send_email(html, plain)
         logger.info("Email sent successfully!")
 
-        # Step 7: Mark as emailed
-        post_ids = [p["id"] for p in unsent]
-        db.mark_emailed(post_ids)
-        logger.info(f"Marked {len(post_ids)} posts as emailed")
+        # Step 7: Mark ALL unsent posts as emailed (including ones we filtered/skipped)
+        all_post_ids = [p["id"] for p in all_unsent]
+        db.mark_emailed(all_post_ids)
+        logger.info(f"Marked {len(all_post_ids)} posts as emailed")
 
     except Exception as e:
         logger.error(f"Failed to send email: {e}")

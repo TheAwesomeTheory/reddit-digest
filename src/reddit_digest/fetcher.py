@@ -2,8 +2,10 @@
 
 import feedparser
 from dataclasses import dataclass
+from datetime import datetime
 from html import unescape
 import re
+from time import mktime
 
 from . import db
 
@@ -18,6 +20,7 @@ class Post:
     url: str
     content: str
     author: str
+    published: datetime | None = None
 
 
 def _extract_post_id(entry: dict) -> str:
@@ -78,6 +81,13 @@ def fetch_subreddit(subreddit_config: dict) -> list[Post]:
         if db.is_seen(post_id):
             continue
 
+        # Extract published timestamp
+        published = None
+        if "published_parsed" in entry and entry.published_parsed:
+            published = datetime.fromtimestamp(mktime(entry.published_parsed))
+        elif "updated_parsed" in entry and entry.updated_parsed:
+            published = datetime.fromtimestamp(mktime(entry.updated_parsed))
+
         post = Post(
             post_id=post_id,
             subreddit=subreddit_name,
@@ -85,6 +95,7 @@ def fetch_subreddit(subreddit_config: dict) -> list[Post]:
             url=entry.get("link", ""),
             content=_clean_content(entry),
             author=entry.get("author", "unknown"),
+            published=published,
         )
 
         new_posts.append(post)
