@@ -3,8 +3,8 @@
 email:
   smtp_server: smtp.gmail.com
   smtp_port: 587
-  sender: your-email@gmail.com
-  recipient: your-email@gmail.com
+  sender: theawesometh3ory@gmail.com
+  recipient: theawesometh3ory@gmail.com
 
 # General filtering rules applied to all posts
 general_rules: |
