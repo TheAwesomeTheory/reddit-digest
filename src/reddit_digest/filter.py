@@ -66,7 +66,7 @@ or
 REJECT: <one sentence explaining why>"""
 
     response = client.chat.completions.create(
-        model="grok-3-fast-latest",
+        model="grok-4-fast-reasoning",
         messages=[{"role": "user", "content": prompt}],
         max_tokens=150,
         temperature=0.3,

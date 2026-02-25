@@ -9,8 +9,8 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-# Models to randomly choose from for HTML generation
-HTML_MODELS = ["grok-3-fast-latest", "grok-3-mini-fast-latest"]
+# Models to randomly choose from for HTML generation (50/50 split)
+HTML_MODELS = ["grok-code-fast-1", "grok-4-fast-reasoning"]
 
 
 def get_client() -> OpenAI:
