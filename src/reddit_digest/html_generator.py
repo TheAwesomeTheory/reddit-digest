@@ -8,6 +8,8 @@ from datetime import datetime
 from pathlib import Path
 from openai import OpenAI
 
+from . import stats
+
 logger = logging.getLogger(__name__)
 
 # Cache directory for generated HTML (inside project root)
@@ -119,6 +121,16 @@ Output ONLY the HTML document, no explanation or markdown code fences."""
         max_tokens=4000,
         temperature=0.8,  # Higher temp for creativity
     )
+
+    # Track API usage
+    current_stats = stats.get_current_stats()
+    if current_stats and response.usage:
+        current_stats.add_api_call(
+            model=model,
+            purpose="html",
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+        )
 
     html = response.choices[0].message.content.strip()
 

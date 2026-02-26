@@ -6,6 +6,9 @@ from dataclasses import dataclass
 from openai import OpenAI
 
 from .fetcher import Post
+from . import stats
+
+FILTER_MODEL = "grok-4-fast-reasoning"
 
 
 @dataclass
@@ -66,11 +69,21 @@ or
 REJECT: <one sentence explaining why>"""
 
     response = client.chat.completions.create(
-        model="grok-4-fast-reasoning",
+        model=FILTER_MODEL,
         messages=[{"role": "user", "content": prompt}],
         max_tokens=150,
         temperature=0.3,
     )
+
+    # Track API usage
+    current_stats = stats.get_current_stats()
+    if current_stats and response.usage:
+        current_stats.add_api_call(
+            model=FILTER_MODEL,
+            purpose="filter",
+            input_tokens=response.usage.prompt_tokens,
+            output_tokens=response.usage.completion_tokens,
+        )
 
     result_text = response.choices[0].message.content.strip()
 

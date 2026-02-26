@@ -3,8 +3,10 @@
 import logging
 import os
 import smtplib
+from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email import encoders
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -34,6 +36,7 @@ def send_email(
     plain_content: str,
     recipients: list[str] | str | None = None,
     sender: str | None = None,
+    debug_summary: str | None = None,
 ) -> None:
     """
     Send an HTML email via Gmail SMTP to one or more recipients.
@@ -44,6 +47,7 @@ def send_email(
         recipients: Override recipient email(s) (defaults to config)
                     Can be a list of emails or a single email string
         sender: Override sender email (defaults to config)
+        debug_summary: Optional debug summary to attach as .txt file
 
     Raises:
         ValueError: If required config is missing
@@ -82,16 +86,33 @@ def send_email(
 
         for recipient in recipients:
             # Create message for each recipient
-            msg = MIMEMultipart("alternative")
+            # Use "mixed" if we have attachments, otherwise "alternative"
+            if debug_summary:
+                msg = MIMEMultipart("mixed")
+                # Create alternative part for HTML/plain text body
+                body_part = MIMEMultipart("alternative")
+                body_part.attach(MIMEText(plain_content, "plain"))
+                body_part.attach(MIMEText(html_content, "html"))
+                msg.attach(body_part)
+
+                # Attach debug summary as .txt file
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                attachment = MIMEBase("text", "plain")
+                attachment.set_payload(debug_summary.encode("utf-8"))
+                encoders.encode_base64(attachment)
+                attachment.add_header(
+                    "Content-Disposition",
+                    f"attachment; filename=digest_debug_{timestamp}.txt",
+                )
+                msg.attach(attachment)
+            else:
+                msg = MIMEMultipart("alternative")
+                msg.attach(MIMEText(plain_content, "plain"))
+                msg.attach(MIMEText(html_content, "html"))
+
             msg["Subject"] = f"Reddit Digest - {datetime.now().strftime('%b %d, %I:%M %p')}"
             msg["From"] = sender
             msg["To"] = recipient
-
-            # Attach both plain text and HTML versions
-            part1 = MIMEText(plain_content, "plain")
-            part2 = MIMEText(html_content, "html")
-            msg.attach(part1)
-            msg.attach(part2)
 
             server.sendmail(sender, recipient, msg.as_string())
             logger.info(f"Email sent to {recipient}")
